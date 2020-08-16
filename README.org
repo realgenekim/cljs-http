@@ -144,6 +144,10 @@
     to complete. If the call is not competed within the set time span,
     it is assumed to have failed.
 
+*** Testing
+
+    To run the tests, `lein doo chrome-headless none`.
+
 ** License
 
    Copyright (C) 2012-2016 r0man

@@ -1,6 +1,8 @@
 (ns cljs-http.core
   (:import [goog.net EventType ErrorCode XhrIo]
-           [goog.net Jsonp])
+           [goog.net Jsonp]
+           [goog.html TrustedResourceUrl]
+           [goog.string Const])
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [cljs-http.util :as util]
             [cljs.core.async :as async]
@@ -112,6 +114,12 @@
             (.abort xhr)))))
     channel))
 
+(defn build-trusted-string [s]
+  ; this circumvents the enforcement of Const objects from non-string-literals
+  ;   without this, Google Closure compiler will generate an error at compile time (i.e., shadow-cljs release mode)
+  ; https://github.com/google/closure-library/blob/master/closure/goog/string/const.js#L50
+  (Const. Const.GOOG_STRING_CONSTRUCTOR_TOKEN_PRIVATE_ s))
+
 (defn jsonp
   "Execute the JSONP request corresponding to the given Ring request
   map and return a core.async channel."
@@ -119,7 +127,10 @@
     :or {keywordize-keys? true}
     :as request}]
   (let [channel (async/chan)
-        jsonp (Jsonp. (util/build-url request) callback-name)]
+        ;trusted-url (TrustedResourceUrl/fromConstant (Const/from (:saved-url request)))
+        trusted-url (TrustedResourceUrl/fromConstant
+                      (build-trusted-string (:saved-url request)))
+        jsonp (Jsonp. trusted-url callback-name)]
     (.setRequestTimeout jsonp timeout)
     (let [req (.send jsonp nil
                      (fn success-callback [data]
@@ -140,6 +151,43 @@
           (let [v (async/<! cancel)]
             (.cancel jsonp req)))))
     channel))
+
+
+
+(comment
+  (def r1 {:scheme :https, :server-name "publish.twitter.com", :server-port nil, :uri "/oembed", :query-string "url=https%3A%2F%2Ftwitter.com%2Frealgenekim%2Fstatus%2F1223794932189671424&omit_script=true", :request-method :jsonp
+           :saved-url "https://publish.twitter.com/oembed?url=https://twitter.com/realgenekim/status/1224310811633635329&omit_script=true"})
+  (def jsonp (Jsonp. url callback-name))
+  (.send jsonp nil (fn [] nil) (fn [] nil))
+
+  (build-trusted-url "abc")
+
+  (Const/from "abc")
+  (.toString (Const/from "abc"))
+  (def trul (Const))
+  (TrustedResourceUrl/fromConstant (Const/from "abc"))
+  (.toString (TrustedResourceUrl/fromConstant (Const/from "abc")))
+
+
+  (let [channel (async/chan)
+        ;; ↓ trusted url insted of just url
+        trusted-url (->> request
+                         (util/build-url)
+                         Const/from
+                         TrustedResourceUrl/fromConstant)
+        jsonp   (Jsonp. trusted-url callback-name)]
+    (.....)))
+
+
+
+(comment
+  (jsonp (build-trusted-url "https://publish.twitter.com/oembed?url=https://twitter.com/realgenekim/status/1223341376475222020&omit_script=true"))
+  (jsonp {:scheme :https, :server-name "publish.twitter.com", :server-port nil, :uri "/oembed", :query-string "url=https%3A%2F%2Ftwitter.com%2Frealgenekim%2Fstatus%2F1223794932189671424&omit_script=true", :request-method :jsonp})
+  (+ 1 1)
+  (clojure.core/refer-clojure))
+
+
+
 
 (defn request
   "Execute the HTTP request corresponding to the given Ring request

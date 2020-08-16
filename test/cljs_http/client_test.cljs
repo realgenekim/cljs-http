@@ -189,6 +189,15 @@
             (is (= (:foo resp) "bar")))
           (done))))))
 
+(deftest ^:async test-jsonp-gene
+  (let [request (client/jsonp "https://publish.twitter.com/oembed?url=https://twitter.com/realgenekim/status/1224310811633635329&omit_script=true")]
+    (testing "jsonp request"
+      (async done
+        (go
+          (let [resp (async/<! request)]
+            (is (= (:foo resp) "bar")))
+          (done))))))
+
 (deftest ^:async test-keywordize-jsonp
   (let [request (client/jsonp "http://jsfiddle.net/echo/jsonp/"
                               {:keywordize-keys? false
